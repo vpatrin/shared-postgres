@@ -1,0 +1,10 @@
+# Environment variables (contains passwords)
+.env
+
+# Backup files
+backups/*.dump
+backups/*.sql
+
+# Temporary files
+*.tmp
+*.log
