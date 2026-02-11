@@ -4,16 +4,8 @@ services:
     container_name: shared-postgres
     restart: unless-stopped
     ports:
-      - "127.0.0.1:5432:5432"  # Expose ONLY to localhost (secure)
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      UMAMI_DB_NAME: ${UMAMI_DB_NAME}
-      UMAMI_DB_USER: ${UMAMI_DB_USER}
-      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD}
-      SHORTENER_DB_NAME: ${SHORTENER_DB_NAME}
-      SHORTENER_DB_USER: ${SHORTENER_DB_USER}
-      SHORTENER_DB_PASSWORD: ${SHORTENER_DB_PASSWORD}
+      - "127.0.0.1:5432:5432"  # Localhost only - accessible for DBeaver
+    env_file: .env
     volumes:
       - shared-postgres-data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
@@ -30,5 +22,4 @@ volumes:
 
 networks:
   internal:
-    # Docker Compose expects the network to already exist - won't create or delete it after docker compose up/down
     external: true
