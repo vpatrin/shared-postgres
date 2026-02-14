@@ -1,158 +1,127 @@
-# Shared PostgreSQL Instance
+# Shared PostgreSQL
 
-One PostgreSQL container serving multiple applications with isolated databases.
-
-## Quick Start
-
-```bash
-cd /home/victor/projects/shared-postgres
-
-# Manage
-docker compose up -d      # Start
-docker compose down       # Stop  
-docker compose logs -f    # Logs
-
-# Backup
-./backup.sh              # Backup all
-
-# Access
-docker exec -it shared-postgres psql -U umami -d umami
-docker exec -it shared-postgres psql -U shortener -d shortener
-docker exec -it shared-postgres psql -U postgres  # Admin
-```
-
----
+One PostgreSQL container, isolated databases per project. Only `.env` changes between environments.
 
 ## Architecture
 
-```
+```text
 shared-postgres:16-alpine
-├─ umami DB (umami user)
-├─ shortener DB (shortener user)  
+├─ umami DB (umami user)         → Umami Analytics
+├─ shortener DB (shortener user) → URL Shortener
+├─ saq_sommelier DB (saq_sommelier user) → SAQ Sommelier
 └─ postgres DB (admin)
 ```
 
-**Services:**
-- Umami Analytics → umami DB
-- URL Shortener → shortener DB
-
-**Security:**
-- Port 5432 → localhost only (127.0.0.1)
-- SSH tunnel required for external access
-- Each app has dedicated limited user
-
----
-
-## Backup & Restore
+## Local Dev
 
 ```bash
-# Backup
-./backup.sh                    # All databases
-# Stored in: ./backups/
+# Start
+docker compose up -d
 
-# Download to local (important!)
-scp -r victor@vps-ip:/home/victor/projects/shared-postgres/backups/ ./
+# Access
+docker exec -it shared-postgres psql -U saq_sommelier -d saq_sommelier
+docker exec -it shared-postgres psql -U umami -d umami
+docker exec -it shared-postgres psql -U shortener -d shortener
+docker exec -it shared-postgres psql -U postgres  # Admin
+
+# Stop (data preserved)
+docker compose down
+
+# Full reset (data deleted, init script re-runs)
+docker compose down -v && docker compose up -d
+```
+
+**Convention:** database = user = password (e.g. `saq_sommelier` / `saq_sommelier` / `saq_sommelier`)
+
+## Production
+
+Same setup on Hetzner VPS. Only `.env` differs (secure passwords).
+
+```bash
+# Deploy
+docker compose up -d
+# Init script creates all databases on first run
+
+# Backup (all databases, no hardcoding)
+docker exec shared-postgres pg_dumpall -U postgres > backup_$(date +%Y%m%d).sql
 
 # Restore
 docker cp backup.dump shared-postgres:/tmp/
 docker exec shared-postgres pg_restore -U umami -d umami -c /tmp/backup.dump
 ```
 
-## Fresh Deployment
-
-**Init script automatically creates databases/users on first run:**
-- `init-scripts/01-init-databases.sh` runs only when volume is empty
-- Creates umami + shortener users with passwords from .env
-- No manual setup needed for new deployments
-
----
-
-## Add Service
+## Add a Database
 
 ```bash
-# 1. Create DB & user
-docker exec -it shared-postgres psql -U postgres
-CREATE USER newapp WITH PASSWORD 'secure-pass';
-CREATE DATABASE newapp OWNER newapp;
-GRANT ALL PRIVILEGES ON DATABASE newapp TO newapp;
+# 1. Add to .env and .env.example
+NEWAPP_DB_NAME=newapp
+NEWAPP_DB_USER=newapp
+NEWAPP_DB_PASSWORD=newapp  # secure password in prod
 
-# 2. Add to .env
-echo "NEWAPP_PASSWORD=secure-pass" >> .env
+# 2. Add to init-scripts/01-init-databases.sh (copy existing pattern)
 
-# 3. Configure app
-DATABASE_URL=postgresql://newapp:secure-pass@shared-postgres:5432/newapp
+# 3. Create on running instance
+docker exec -i shared-postgres psql -U postgres <<-EOSQL
+    CREATE USER newapp WITH PASSWORD 'newapp';
+    CREATE DATABASE newapp OWNER newapp;
+    GRANT ALL PRIVILEGES ON DATABASE newapp TO newapp;
+EOSQL
+
+# 4. Configure app
+DATABASE_URL=postgresql://newapp:newapp@localhost:5432/newapp
 ```
 
----
-
-## Remove Service
+## Remove a Database
 
 ```bash
-# 1. Backup!
+# 1. Backup first!
 docker exec shared-postgres pg_dump -U myapp -d myapp -F c > final.dump
 
 # 2. Drop
-docker exec -it shared-postgres psql -U postgres
-DROP DATABASE myapp;
-DROP USER myapp;
+docker exec -i shared-postgres psql -U postgres -c "DROP DATABASE myapp;"
+docker exec -i shared-postgres psql -U postgres -c "DROP USER myapp;"
+
+# 3. Remove from .env, .env.example, and init script
 ```
 
----
-
-## Monitor
+## Quick Checks
 
 ```bash
-# Databases
-docker exec shared-postgres psql -U postgres -c "\l"
-
-# Sizes  
-docker exec shared-postgres psql -U postgres -c "
-SELECT datname, pg_size_pretty(pg_database_size(datname))
-FROM pg_database WHERE datname IN ('umami','shortener');"
-
-# Connections
-docker exec shared-postgres psql -U postgres -c "
-SELECT datname, usename, count(*) FROM pg_stat_activity GROUP BY 1,2;"
+docker ps | grep shared-postgres                          # Running?
+docker logs shared-postgres                               # Logs
+docker exec shared-postgres psql -U postgres -c "\l"      # Databases
+docker exec shared-postgres psql -U postgres -c "\du"     # Users
 ```
-
----
-
-## Troubleshoot
-
-```bash
-# Check running
-docker ps | grep shared-postgres
-
-# Check logs
-docker logs shared-postgres
-
-# Test connection
-docker exec shared-postgres psql -U umami -d umami -c "SELECT 1;"
-
-# Reset password
-docker exec shared-postgres psql -U postgres -c "ALTER USER umami WITH PASSWORD 'new';"
-```
-
----
 
 ## Schema Changes
 
-Apps manage their own schemas:
+Each app manages its own schema:
+
 - **Umami:** Prisma migrations (auto on restart)
 - **Shortener:** SQLAlchemy (auto on restart)
-- **Manual:** Connect via DBeaver, backup first
+- **SAQ Sommelier:** Alembic migrations (manual)
 
----
+## Data Volume
 
-## Security
+All database data lives in the `pgdata` Docker volume.
 
-✅ Localhost binding (not internet-facing)
-✅ Dedicated non-superuser per app
-✅ SSH required for external access
-⚠️ Never use postgres user in apps
-⚠️ Regular backups + off-site storage
+- **`docker compose down`** - Volume preserved, all data intact
+- **`docker compose down -v`** - Volume deleted, all data gone
+- **Dev:** Safe to reset anytime (`down -v`), init script recreates everything
+- **Prod:** Never use `-v` unless you have a backup
 
----
+```bash
+# Inspect volume
+docker volume inspect shared-postgres_pgdata
 
-**Version:** PostgreSQL 16-alpine
-**Location:** `/home/victor/projects/shared-postgres/`
+# Volume size
+docker system df -v | grep shared-postgres
+```
+
+## Files
+
+- **`.env`** - Database credentials (gitignored)
+- **`.env.example`** - Template for new environments
+- **`init-scripts/`** - Runs on first container start (empty volume only)
+
+**Security:** Port 5432 bound to localhost only. SSH tunnel required for external access. Never use postgres user in apps.
