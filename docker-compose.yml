@@ -7,7 +7,7 @@ services:
       - "127.0.0.1:5432:5432"  # Localhost only - accessible for DBeaver
     env_file: .env
     volumes:
-      - shared-postgres-data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -18,7 +18,7 @@ services:
       - internal
 
 volumes:
-  shared-postgres-data:
+  pgdata:
 
 networks:
   internal:
