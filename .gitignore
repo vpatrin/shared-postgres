@@ -8,3 +8,7 @@ backups/*.sql
 # Temporary files
 *.tmp
 *.log
+
+# Claude
+CLAUDE.md
+.claude/

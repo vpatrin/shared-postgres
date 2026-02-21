@@ -1,4 +1,4 @@
-.PHONY: help up down logs psql restart
+.PHONY: help up down logs psql restart backup
 
 help: ## Show this help
 	@echo "Shared PostgreSQL - Available Commands"
@@ -18,3 +18,9 @@ psql: ## Open PostgreSQL shell (admin)
 	docker exec -it shared-postgres psql -U $$(grep POSTGRES_USER .env | cut -d= -f2)
 
 restart: down up ## Restart shared-postgres
+
+backup: ## Dump all databases to backups/
+	@mkdir -p backups
+	docker exec shared-postgres pg_dumpall -U $$(grep POSTGRES_USER .env | cut -d= -f2) > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "Backup saved to backups/"
+	@ls -lh backups/*.sql | tail -1
