@@ -5,10 +5,10 @@ One PostgreSQL container, isolated databases per project. Only `.env` changes be
 ## Architecture
 
 ```text
-shared-postgres:16-alpine
+pgvector/pgvector:pg16
 ├─ umami DB (umami user)         → Umami Analytics
 ├─ shortener DB (shortener user) → URL Shortener
-├─ saq_sommelier DB (saq_sommelier user) → SAQ Sommelier
+├─ saq_sommelier DB (saq_sommelier user) → SAQ Sommelier (pgvector enabled)
 └─ postgres DB (admin)
 ```
 
