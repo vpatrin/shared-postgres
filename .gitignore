@@ -11,4 +11,5 @@ backups/*.sql
 
 # Claude
 CLAUDE.md
-.claude/
+.claude/*
+!.claude/commands/

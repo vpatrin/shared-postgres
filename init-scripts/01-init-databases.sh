@@ -22,4 +22,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     GRANT ALL PRIVILEGES ON DATABASE $SAQ_SOMMELIER_DB_NAME TO $SAQ_SOMMELIER_DB_USER;
 EOSQL
 
+echo "Enabling pgvector extension on $SAQ_SOMMELIER_DB_NAME..."
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$SAQ_SOMMELIER_DB_NAME" <<-EOSQL
+    CREATE EXTENSION IF NOT EXISTS vector;
+EOSQL
+
 echo "Database initialization completed successfully!"
