@@ -1,3 +1,13 @@
+# ⚠️ Archived
+
+This repository has been absorbed into [vpatrin/infra](https://github.com/vpatrin/infra).
+
+- **Moved to:** `infra/services/postgres/`
+- **Date:** 2026-03-16
+- **Last commit before archive:** `c973223`
+
+---
+
 # Shared PostgreSQL
 
 One PostgreSQL container, isolated databases per project. Only `.env` changes between environments.
